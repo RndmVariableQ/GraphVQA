@@ -850,6 +850,11 @@ class GQATorchDataset(torch.utils.data.Dataset):
                          oid_to_idx[rel[1]],
                          R])
 
+        if len(rels) == 0:
+            rels.append([0, 0, 0])
+        # print('rels', rels, len(rels), len(rels[0]))
+        # print("-"*50)
+
         ############################################################
         # Add current SG information to the dataset
         boxes_i = np.array(boxes_i)
@@ -956,18 +961,20 @@ class GQATorchDataset(torch.utils.data.Dataset):
         ############## Filter_duplicate_rels ##############
         # ...
 
+
         ############## Build entry for sgg ##############
         sgg_entry = {
             'img': self.transform_pipeline(image_unpadded),
             'img_size': im_size,
             'gt_boxes': boxes_i,
             'gt_classes': gt_classes_i,
-            'gt_relations': rels,
+            'gt_relations': np.array(rels),
             'scale': im_scale / box_scale,  # Multiply the boxes by this.
             'index': index,
             'flipped': flipped,
             'fn': fn,
         }
+
 
         return (
             questionID, question_text_tokenized, sg_datum, program_text_tokenized,
@@ -976,6 +983,14 @@ class GQATorchDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.data)
+
+    @property
+    def num_classes(self):
+        return len(self.ind_to_classes)
+
+    @property
+    def num_predicates(self):
+        return len(self.ind_to_predicates)
 
     @property
     def num_answers(self):
@@ -1089,8 +1104,19 @@ def GQATorchDataset_collate_fn(data):
 
 
     #################### collate rel #####################
+    
     sgg_entry = vg_collate(sgg_entry) # check authenticity
-    import pdb; pdb.set_trace() 
+    
+    
+    # sgg_entry[0][0] (2,3,592,592) img
+    # sgg_entry[0][1] (2,3) image_size
+    # sgg_entry[0][2] (int) 0 
+    # sgg_entry[0][3] （28，4）gt_boxes
+    # sgg_entry[0][4] （28，2）
+    # sgg_entry[0][5]  Nonetype
+    # sgg_entry[0][6]   
+    # sgg_entry[0][7] Imageid:['2345076.jpg', '2325145.jpg']
+    # import pdb; pdb.set_trace() 
 
     return (
         questionID, question_text_processed, sg_datum_processed, program_text_tokenized_processed,
@@ -1099,7 +1125,7 @@ def GQATorchDataset_collate_fn(data):
 
 
 from util.blob import Blob
-def vg_collate(data, num_gpus=1, is_train=False, mode='det', torch_detector=False, is_cuda=True):
+def vg_collate(data, num_gpus=1, is_train=False, mode='rel', torch_detector=False, is_cuda=True):
     assert mode in ('det', 'rel')
     blob = Blob(mode=mode, is_train=is_train, num_gpus=num_gpus,
                 batch_size_per_gpu=len(data) // num_gpus, torch_detector=torch_detector, is_cuda=is_cuda)
@@ -1108,8 +1134,54 @@ def vg_collate(data, num_gpus=1, is_train=False, mode='det', torch_detector=Fals
     blob.reduce()
     return blob
 
+"""
+blob[0][0].shape
+Out[25]: torch.Size([2, 3, 592, 592])
+
+blob[0][1].shape
+Out[26]: (2, 3)
+
+blob[0][2]
+Out[28]: 0
+
+blob[0][3].shape
+Out[30]: torch.Size([32, 4])
+
+blob[0][4].shape
+Out[31]: torch.Size([32, 2])
 
 
+
+
+
+
+data[0]['img'].shape
+Out[4]: torch.Size([3, 592, 592])
+
+data[0]['img_size']
+Out[6]: (394, 592, 1.184)
+
+data[0]['gt_boxes'].shape
+Out[8]: (12, 4)
+
+data[0]['gt_classes'].shape
+Out[9]: (12,)
+
+len(data[0]['gt_relations'])
+Out[11]: 37  (x3)
+
+data[0]['scale']
+Out[15]: 0.578125
+
+data[0]['index'] 
+Out[18]: 25804
+
+data[0]['flipped']
+Out[19]: False
+
+data[0]['fn']
+Out[20]: '/dataset/VQA/GQA/images/2391275.jpg'
+"""
 
 
 def load_gqa_graphs(all_sgs_json, image_ids, classes_to_ind, predicates_to_ind, num_val_im=-1,
@@ -1291,7 +1363,7 @@ def load_gqa_graphs(all_sgs_json, image_ids, classes_to_ind, predicates_to_ind, 
         boxes.append(boxes_i)
         gt_classes.append(gt_classes_i)
         relationships.append(rels)
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     return split_mask, boxes, gt_classes, relationships
 
 

@@ -70,7 +70,7 @@ def get_args_parser():
     parser.add_argument('--log-name', default='gtsg.log', type=str, metavar='PATH',
                         help='path to the log file (default: output.log)')
     # parser.add_argument('-j', '--workers', default=2, type=int, metavar='N',
-    parser.add_argument('-j', '--workers', default=32, type=int, metavar='N',
+    parser.add_argument('-j', '--workers', default=16, type=int, metavar='N',
                         help='number of data loading workers (default: 4)')
     parser.add_argument('--epochs', default=300, type=int, metavar='N',
                         help='number of total epochs to run')
@@ -78,7 +78,7 @@ def get_args_parser():
                         help='manual epoch number (useful on restarts)')
     # parser.add_argument('-b', '--batch-size', default=1024, type=int,
     # parser.add_argument('-b', '--batch-size', default=512, type=int,
-    parser.add_argument('-b', '--batch-size', default=256, type=int,
+    parser.add_argument('-b', '--batch-size', default=64, type=int,
                         metavar='N',
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
@@ -249,7 +249,7 @@ def main(args):
     # Initialize model
     # - note: must init dataset first. Since we will use the vocab from the dataset
     ##################################
-    model = PipelineModel()
+    model = PipelineModel(train_loader)
 
     ##################################
     # Deploy model on GPU
@@ -420,7 +420,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # measure data loading time
         data_time.update(time.time() - end)
 
-        questionID, questions, gt_scene_graphs, programs, full_answers, short_answer_label, types, boxes_i, gt_classes_i, rels, imageId = data_batch
+        questionID, questions, gt_scene_graphs, programs, full_answers, short_answer_label, types, sgg_entry = data_batch
         del questionID
         questions, gt_scene_graphs, programs, full_answers, short_answer_label = [
             datum.to(device
@@ -428,7 +428,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
                 questions, gt_scene_graphs, programs, full_answers, short_answer_label
             ]
         ]
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
 
         this_batch_size = questions.size(1)
         # print("this_batch_size", this_batch_size, "data_batch", data_batch)
@@ -454,13 +454,16 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         ##################################
         # Forward training data
         ##################################
+
         output = model(
-            questions,
-            gt_scene_graphs,
-            programs_input,
-            full_answers_input
+            questions=questions,
+            gt_scene_graphs=gt_scene_graphs,
+            programs_input=programs_input,
+            full_answers_input=full_answers_input,
+            sgg_entry=sgg_entry,
         )
-        programs_output, short_answer_logits = output
+
+        programs_output,   = output
 
         ##################################
         # Evaluate on training data

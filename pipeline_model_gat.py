@@ -10,8 +10,12 @@ from torch_scatter import scatter_mean, scatter_add
 import logging
 import torch_geometric
 from gqa_dataset_entry import GQATorchDataset
+from util.config import *
+conf = ModelConfig()
 
 from graph_utils import my_graph_layernorm
+from baseline_and_test_models.rel_model_stanford import RelModelStanford
+
 
 from gat_skip import gat_seq # use second version of gat
 """
@@ -613,12 +617,20 @@ class GroundTruth_SceneGraph_Encoder(torch.nn.Module):
 The whole Pipeline. put everything here
 """
 class PipelineModel(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, train_loader):
         super(PipelineModel, self).__init__()
 
         ##################################
         # build scene graph encoder
         ##################################
+        
+        self.sgg_model = RelModelStanford(train_data=train_loader.dataset,
+                             mode=conf.mode,
+                             use_bias=conf.use_bias,
+                             test_bias=conf.test_bias,
+                             backbone=conf.backbone,
+                             RELS_PER_IMG=conf.rels_per_img,
+                             edge_model=conf.edge_model)
         self.scene_graph_encoder = GroundTruth_SceneGraph_Encoder()
 
 
@@ -746,15 +758,23 @@ class PipelineModel(torch.nn.Module):
                 programs_input,
                 full_answers_input,
                 SAMPLE_FLAG=False,
+                sgg_entry=None,
                 ):
 
-        x_encoded, edge_attr_encoded, _ = self.scene_graph_encoder(gt_scene_graphs)
+        # x_encoded, edge_attr_encoded, _ = self.scene_graph_encoder(gt_scene_graphs)
+        sgg_res = self.sgg_model(sgg_entry.scatter())
+
+
+
+
 
         ##################################
         # Encode questions
         ##################################
         # [ Len, Batch ] -> [ Len, Batch, self.question_hidden_dim ]
         questions_encoded = self.question_encoder(questions)
+
+
 
         ##################################
         # Decode programs
@@ -854,24 +874,28 @@ if __name__ == "__main__":
     #         split='train_unbiased',
     #         build_vocab_flag=True,
     #         load_vocab_flag=True
-    #     )    
+    #     )   
+    data_loader = torch.utils.data.DataLoader(debug_dataset, batch_size=2, shuffle=True, num_workers=0, collate_fn=GQATorchDataset_collate_fn)
+
 
     ##################################
     # Debugging: init model
     # Forwarding a tiny batch with CPU
     ##################################
-    model = PipelineModel()
+    model = PipelineModel(data_loader)
     model.train()
+
+
 
     ##################################
     # Simulate Batching
     ##################################
-
-    data_loader = torch.utils.data.DataLoader(debug_dataset, batch_size=2, shuffle=True, num_workers=0, collate_fn=GQATorchDataset_collate_fn)
     for data_batch in data_loader:
         # print("data_batch", data_batch)
-        questionID, questions, gt_scene_graphs, programs, full_answers, short_answer_label, types = data_batch
+        questionID, questions, gt_scene_graphs, programs, full_answers, short_answer_label, types, sgg_entry = data_batch
+
         print("gt_scene_graphs", gt_scene_graphs)
+        print("sgg_entry", sgg_entry[0][5])
         # print("gt_scene_graphs.x", gt_scene_graphs.x)
         # print("gt_scene_graphs.edge_index[0]", gt_scene_graphs.edge_index[0])
         # print("gt_scene_graphs.edge_attr", gt_scene_graphs.edge_attr )
@@ -888,15 +912,14 @@ if __name__ == "__main__":
         full_answers_target = full_answers[1:]
 
         output = model(
-            questions,
-            gt_scene_graphs,
-            programs_input,
-            full_answers_input
+            questions=questions,
+            gt_scene_graphs=gt_scene_graphs,
+            programs_input=programs_input,
+            full_answers_input=full_answers_input,
+            sgg_entry=sgg_entry,
         )
 
         print("model output:", output)
-
-
 
 
         break
