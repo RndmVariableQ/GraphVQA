@@ -561,7 +561,7 @@ class GroundTruth_SceneGraph_Encoder(torch.nn.Module):
         sg_TEXT = GQA_gt_sg_feature_lookup.SG_ENCODING_TEXT
         sg_vocab = GQA_gt_sg_feature_lookup.SG_ENCODING_TEXT.vocab
 
-        self.sg_emb_dim = 300 # 300d glove
+        self.sg_emb_dim = 512 # 300d glove
         sg_pad_idx = sg_vocab.stoi[sg_TEXT.pad_token]
         self.sg_vocab_embedding = torch.nn.Embedding(len(sg_vocab), self.sg_emb_dim, padding_idx=sg_pad_idx)
         # self.sg_vocab_embedding.weight.data.copy_(sg_vocab.vectors)
@@ -693,8 +693,8 @@ class PipelineModel(torch.nn.Module):
 
 
         self.gat_seq = gat_seq(in_channels=self.scene_graph_encoder.sg_emb_dim,
-                 out_channels=self.scene_graph_encoder.sg_emb_dim, 
-                 edge_attr_dim=self.scene_graph_encoder.sg_emb_dim, 
+                 out_channels=512, #self.scene_graph_encoder.sg_emb_dim,
+                 edge_attr_dim=512, #self.scene_graph_encoder.sg_emb_dim,
                  ins_dim=self.question_hidden_dim, num_ins=5,
                  dropout=0.1, gat_heads=4, gat_negative_slope=0.2, gat_bias=True) # the drop-out is for both dropout in between GATs and dropout inside the GATs
 
@@ -762,7 +762,7 @@ class PipelineModel(torch.nn.Module):
                 ):
 
         # x_encoded, edge_attr_encoded, _ = self.scene_graph_encoder(gt_scene_graphs)
-        sgg_res = self.sgg_model(sgg_entry.scatter())
+
 
 
 
@@ -788,6 +788,7 @@ class PipelineModel(torch.nn.Module):
         ##################################
         # Call Recurrent Neural Execution Module
         ##################################
+
         # x_executed, execution_bitmap, history_vectors = self.recurrent_execution_engine(
         #     x=x_encoded,
         #     edge_index=gt_scene_graphs.edge_index,
@@ -805,10 +806,16 @@ class PipelineModel(torch.nn.Module):
 
         # edge_cat = torch.cat( (edge_attr_encoded, repeated_ins.to(edge_attr_encoded.device)), dim=-1) # shape: num_edges X  encode_dim+instruction_dim
         # x_cat = torch.cat( (x_encoded, x_encoded), dim=-1)
-
         # x_executed = self.gat_seq(x=x_cat, edge_index=gt_scene_graphs.edge_index, edge_attr=edge_cat)
 
-        x_executed = self.gat_seq(x=x_encoded, edge_index=gt_scene_graphs.edge_index, edge_attr=edge_attr_encoded, instr_vectors=instr_vectors, batch=gt_scene_graphs.batch)
+
+        # x_executed = self.gat_seq(x=x_encoded, edge_index=gt_scene_graphs.edge_index, edge_attr=edge_attr_encoded,
+        #                           instr_vectors=instr_vectors, batch=gt_scene_graphs.batch)
+        
+        # x_encoded: [1146, 300] edge_index: [2, 5140] edge_attr_encoded: [5140, 300] batch: [1146, ]
+        # e_feat: [32019, 512] n_feat: [1348, 512] rel_inds: [32019, 2] im_inds: [1348,]
+        sgg_res = self.sgg_model(sgg_entry.scatter())
+        x_executed = self.gat_seq(x=sgg_res.n_feat, edge_index=sgg_res.rel_inds.permute(1,0), edge_attr=sgg_res.e_feat, instr_vectors=instr_vectors, batch=sgg_res.im_inds)
         
 
 
@@ -894,8 +901,8 @@ if __name__ == "__main__":
         # print("data_batch", data_batch)
         questionID, questions, gt_scene_graphs, programs, full_answers, short_answer_label, types, sgg_entry = data_batch
 
-        print("gt_scene_graphs", gt_scene_graphs)
-        print("sgg_entry", sgg_entry[0][5])
+        # print("gt_scene_graphs", gt_scene_graphs)
+        # print("sgg_entry", sgg_entry[0][5])
         # print("gt_scene_graphs.x", gt_scene_graphs.x)
         # print("gt_scene_graphs.edge_index[0]", gt_scene_graphs.edge_index[0])
         # print("gt_scene_graphs.edge_attr", gt_scene_graphs.edge_attr )

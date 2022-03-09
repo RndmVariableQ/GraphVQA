@@ -182,6 +182,7 @@ class RelModelStanford(RelModelBase):
 
         if self.training:
             result.rois = rois
+            result.n_feat = n_feat; result.e_feat = e_feat; result.rel_inds = rel_inds[:, 1:]
             return result
 
         if self.mode == 'predcls':

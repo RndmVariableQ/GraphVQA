@@ -78,7 +78,7 @@ def get_args_parser():
                         help='manual epoch number (useful on restarts)')
     # parser.add_argument('-b', '--batch-size', default=1024, type=int,
     # parser.add_argument('-b', '--batch-size', default=512, type=int,
-    parser.add_argument('-b', '--batch-size', default=64, type=int,
+    parser.add_argument('-b', '--batch-size', default=32, type=int,
                         metavar='N',
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
@@ -463,7 +463,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             sgg_entry=sgg_entry,
         )
 
-        programs_output,   = output
+        programs_output, short_answer_logits = output
 
         ##################################
         # Evaluate on training data

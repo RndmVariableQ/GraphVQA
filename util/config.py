@@ -167,7 +167,7 @@ class ModelConfig(object):
         parser.add_argument('-lr_decay', dest='lr_decay', help='learning rate decay factor', type=float, default=0.1)
         parser.add_argument('-steps', dest='steps', help='the epochs after which decay the learning rate', type=str, default='15')
         parser.add_argument('-nepoch', dest='num_epochs', help='Number of epochs to train the model for', type=int, default=20)
-        parser.add_argument('-b', dest='batch_size', help='batch size per GPU',type=int, default=6)
+        parser.add_argument('-b', dest='batch_size', help='batch size per GPU', type=int, default=4)
         parser.add_argument('-val_size', dest='val_size', help='val size to use (if 0 we wont use val)', type=int, default=5000)
         parser.add_argument('-l2', dest='l2', help='weight decay', type=float, default=1e-4)
         parser.add_argument('-clip', dest='clip', help='gradients will be clipped to have norm less than this', type=float, default=5.0)

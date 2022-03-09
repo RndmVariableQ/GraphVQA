@@ -5,20 +5,14 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="bd08e6bf-46f9-423d-93ef-e2f47433d807" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/gqa_sgg_dataset_entry.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/main_sgg.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/blob.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/config.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/download.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/gqa.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/image_transforms.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/pytorch_misc.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/visual_genome.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/util/vtranse.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/.name" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/baseline_and_test_models/rel_model_stanford.py" beforeDir="false" afterPath="$PROJECT_DIR$/baseline_and_test_models/rel_model_stanford.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/gqa_dataset_entry.py" beforeDir="false" afterPath="$PROJECT_DIR$/gqa_dataset_entry.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/gat_skip.py" beforeDir="false" afterPath="$PROJECT_DIR$/gat_skip.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main_sgg.py" beforeDir="false" afterPath="$PROJECT_DIR$/main_sgg.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pipeline_model_gat.py" beforeDir="false" afterPath="$PROJECT_DIR$/pipeline_model_gat.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/util/config.py" beforeDir="false" afterPath="$PROJECT_DIR$/util/config.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/util/surgery.py" beforeDir="false" afterPath="$PROJECT_DIR$/util/surgery.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -54,7 +48,7 @@
   <component name="PropertiesComponent">
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../../SGG/sgg" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -273,9 +267,9 @@
           <option name="timeStamp" value="21" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/util/blob.py</url>
-          <line>129</line>
-          <option name="timeStamp" value="23" />
+          <url>file://$PROJECT_DIR$/pipeline_model_gat.py</url>
+          <line>817</line>
+          <option name="timeStamp" value="27" />
         </line-breakpoint>
       </breakpoints>
       <default-breakpoints>

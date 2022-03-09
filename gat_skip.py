@@ -257,6 +257,7 @@ class gat_seq(torch.nn.Module):
             edge_batch = batch[edge_index[0]] # find out which batch the edge belongs to
             repeated_ins_edge = torch.zeros((edge_index.shape[1], ins.shape[-1])) # shape: num_edges x instruction_dim
             repeated_ins_edge = ins[edge_batch] # pick correct batched instruction for each edge
+            # print("edge_attr", edge_batch, 'repeated_ins_edge', repeated_ins_edge.shape, 'edge_attr', edge_attr.shape)
             edge_cat = torch.cat((edge_attr, repeated_ins_edge.to(edge_attr.device)), dim=-1) # shape: num_edges X  encode_dim+instruction_dim
             
 
