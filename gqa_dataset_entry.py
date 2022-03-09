@@ -14,6 +14,12 @@ import Constants
 import numpy as np
 import torch_geometric
 import torchtext
+from PIL import Image
+
+from util.image_transforms import SquarePad
+from torchvision.transforms import Resize, Compose, ToTensor, Normalize
+from util.config import BOX_SCALE, IM_SCALE
+
 
 
 # ROOT_DIR = pathlib.Path('/home/weixin/neuralPoolTest/')
@@ -372,21 +378,308 @@ class GQA_gt_sg_feature_lookup:
         return datum
 
 
-
-
+# class GQATorchDataset(torch.utils.data.Dataset):
+#
+#     ##################################
+#     # common config for QA part
+#     ##################################
+#     # MAX_EXECUTION_STEP = 9 # strict 9
+#     # strict 9
+#     MAX_EXECUTION_STEP = 5
+#
+#     # QA vocab: to preprocess and numerlicalize text
+#     TEXT = torchtext.data.Field(sequential=True,
+#                                 tokenize="spacy",
+#                                 init_token="<start>",
+#                                 eos_token="<end>",
+#                                 tokenizer_language='en_core_web_sm',
+#                                 # include_lengths=True,
+#                                 include_lengths=False,
+#                                 # Whether to produce tensors with the batch dimension first.
+#                                 batch_first=False)
+#
+#     ##################################
+#     # Init class-level var
+#     # Prepare short answer vocab
+#     # read only for using self.XXX to access
+#     ##################################
+#     # with open(ROOT_DIR / 'GraphVQA/meta_info/GQA_plural_answer.json') as infile:
+#     #     answer_plural_inv_map = json.load(infile)
+#     with open(ROOT_DIR / 'GraphVQA/meta_info/trainval_ans2label.json') as infile:
+#         ans2label = json.load(infile)
+#     with open(ROOT_DIR / 'GraphVQA/meta_info/trainval_label2ans.json') as infile:
+#         label2ans = json.load(infile)
+#     assert len(ans2label) == len(label2ans)
+#     for ans, label in ans2label.items():
+#         assert label2ans[label] == ans
+#
+#     def __init__(
+#             self,
+#             split,
+#             build_vocab_flag=False,
+#             load_vocab_flag=False
+#     ):
+#
+#         self.split = split
+#         assert split in SPLIT_TO_H5_PATH_TABLE
+#
+#         ##################################
+#         # Prepare scene graph loader (Ground Truth loader or DETR feature loader)
+#         ##################################
+#
+#         ### Using Ground Truth Scene Graph
+#         self.sg_feature_lookup = GQA_gt_sg_feature_lookup(self.split) # Using Ground Truth
+#
+#
+#
+#
+#         ##################################
+#         # common config for QA part
+#         ##################################
+#         # self.max_src = 30
+#         # self.max_trg = 80
+#         # self.num_regions = 32
+#
+#         ##################################
+#         # load data based on split
+#         ##################################
+#         ##################################
+#         # load data based on split
+#         ##################################
+#         programmed_question_path = SPLIT_TO_PROGRAMMED_QUESTION_PATH_TABLE[split]
+#         with open(programmed_question_path) as infile:
+#             self.data = json.load(infile)
+#
+#         if split in ['debug', 'train_unbiased']:
+#
+#             ##################################
+#             # build qa vocab
+#             # must build vocab with training data
+#             ##################################
+#             if build_vocab_flag:
+#                 raise NotImplementedError("Are you sure?")
+#                 # self.build_qa_vocab()
+#             self.load_qa_vocab()
+#         else:
+#             assert split in ['val_unbiased', 'testdev', 'val_all']
+#             ##################################
+#             # load qa vocab
+#             ##################################
+#             if load_vocab_flag:
+#                 self.load_qa_vocab()
+#
+#         print("finished loading the data, totally {} instances".format(len(self.data)))
+#         self.vocab = GQATorchDataset.TEXT.vocab
+#
+#     def __getitem__(self, index):
+#
+#         ##################################
+#         # Unpack GQA data items.
+#         # - Scene graph would be handled seperately
+#         ##################################
+#         datum = self.data[index]
+#
+#         imageId = datum[0]
+#         question_text = datum[1]
+#         # new_programs = datum[2] # processed format, not the origin program
+#         questionID = datum[3]
+#         short_answer = datum[4]
+#         full_answer_text = datum[5]
+#         # program_text_tokenized = datum[6]
+#         # annotations = datum[7] # dict keys = ["answer", "question", "fullAnswer"]
+#         new_execution_buffer = datum[8]
+#         new_programs_hierarchical_decoder = datum[9]
+#         types = datum[10]
+#
+#         ##################################
+#         # Prepare short answer
+#         # if it is in plural form, convert it into singular form
+#         ##################################
+#         # TODO: Find the semantically nearest label to 'bottle cap' or extend the vocab
+#         #   Problem: there is one label in testdev set, 'bottle cap', that is OOD
+#         #   Quick fix: replace 'bottle cap' with a random short answer label
+#         if short_answer == 'bottle cap':
+#             short_answer = 'bottle'
+#         assert short_answer in self.ans2label, short_answer
+#         # if short_answer in self.answer_plural_inv_map:
+#         #     short_answer = self.answer_plural_inv_map[short_answer]
+#         short_answer_label = self.ans2label[short_answer]
+#
+#         ##################################
+#         # Pre-processing (tokenization only), relying on collate_fn to pad and numericalize
+#         ##################################
+#         question_text_tokenized = GQATorchDataset.TEXT.preprocess(question_text)
+#         full_answer_text_tokenized = GQATorchDataset.TEXT.preprocess(full_answer_text)
+#
+#         ##################################
+#         # handle scene graph part
+#         ##################################
+#         queryID = str(imageId)
+#         # sg_datum = self.sg_feature_lookup.query(queryID)
+#         sg_datum = self.sg_feature_lookup.query_and_translate(queryID, new_execution_buffer) #, fetched_datum=datum)
+#
+#         ##################################
+#         # Do padding
+#         ##################################
+#         # cut-off
+#         new_programs_hierarchical_decoder = new_programs_hierarchical_decoder[: GQATorchDataset.MAX_EXECUTION_STEP]
+#         # padding empty
+#         new_programs_hierarchical_decoder += (GQATorchDataset.MAX_EXECUTION_STEP - len(new_programs_hierarchical_decoder)) * [[]]
+#         # assign new
+#         program_text_tokenized = new_programs_hierarchical_decoder
+#
+#         ##################################
+#         # return
+#         ##################################
+#
+#         return (
+#             questionID, question_text_tokenized, sg_datum, program_text_tokenized,
+#             full_answer_text_tokenized, short_answer_label, types
+#         )
+#
+#     def __len__(self):
+#         return len(self.data)
+#
+#     @property
+#     def num_answers(self):
+#         return len(self.ans2label)
+#
+#     def build_qa_vocab(self):
+#         ##################################
+#         # construct vocab using torchtext, one vocab for Question, Program, Full Answer
+#         ##################################
+#         tmp_text_list = []
+#         for datum in self.data:
+#             question_text = datum[1]
+#             program_text_tokenized = datum[6]
+#             full_answer_text = datum[5]
+#             # Question
+#             # must do preprocess (tokenization) before doing the buld vocab
+#             question_text_tokenized = GQATorchDataset.TEXT.preprocess(question_text)
+#             tmp_text_list.append(question_text_tokenized)
+#             # Program
+#             tmp_text_list.append(program_text_tokenized)
+#             # Full Answer
+#             # must do preprocess (tokenization) before doing the buld vocab
+#             full_answer_text_tokenized = GQATorchDataset.TEXT.preprocess(full_answer_text)
+#             tmp_text_list.append(full_answer_text_tokenized)
+#         GQATorchDataset.TEXT.build_vocab(tmp_text_list, vectors="glove.6B.300d")
+#         del tmp_text_list
+#
+#         # save the vocab
+#         with open(ROOT_DIR / 'GraphVQA' / 'questions' / 'GQA_TEXT_obj.pkl', 'wb') as f:
+#             pickle.dump(GQATorchDataset.TEXT, f)
+#
+#     def load_qa_vocab(self):
+#         ##################################
+#         # load existing vocab using pickle
+#         ##################################
+#         with open(ROOT_DIR / 'GraphVQA' / 'questions' / 'GQA_TEXT_obj.pkl', 'rb') as f:
+#             text_reloaded = pickle.load(f)
+#             GQATorchDataset.TEXT = text_reloaded
+#
+#     @classmethod
+#     def indices_to_string(cls, indices, words=False):
+#         """Convert word indices (torch.Tensor) to sentence (string).
+#         Args:
+#             indices: torch.tensor or numpy.array of shape (T) or (T, 1)
+#             words: boolean, wheter return list of words
+#         Returns:
+#             sentence: string type of converted sentence
+#             words: (optional) list[string] type of words list
+#         """
+#         sentence = list()
+#         for idx in indices:
+#             word = GQATorchDataset.TEXT.vocab.itos[idx.item()]
+#
+#             if word in ["<pad>", "<start>"]:
+#                 continue
+#             if word in ["<end>"]:
+#                 break
+#
+#             # no needs of space between the special symbols
+#             if len(sentence) and word in ["'", ".", "?", "!", ","]:
+#                 sentence[-1] += word
+#             else:
+#                 sentence.append(word)
+#
+#         if words:
+#             return " ".join(sentence), sentence
+#         return " ".join(sentence)
+#
+#
+# """Example json input from QA
+# "07333408": {
+#     "semantic": [{"operation": "select", "dependencies": [], "argument": "wall (722332)"},
+#                  {"operation": "filter color", "dependencies": [0], "argument": "white"},
+#                  {"operation": "relate", "dependencies": [1], "argument": "_,on,s (722335)"},
+#                  {"operation": "query", "dependencies": [2], "argument": "name"}], "entailed": [], "equivalent": ["07333408"],
+#     "question": "What is on the white wall?",
+#     "imageId": "2375429",
+#     "isBalanced": true,
+#     "groups": {"global": "", "local": "14-wall_on,s"},
+#     "answer": "pipe",
+#     "semanticStr": "select: wall (722332)->filter color: white [0]->relate: _,on,s (722335) [1]->query: name [2]",
+#     "annotations": {"answer": {"0": "722335"},
+#     "question": {"4:6": "722332"},
+#     "fullAnswer": {"1": "722335", "5": "722332"}},
+#     "types": {"detailed": "relS", "semantic": "rel", "structural": "query"},
+#     "fullAnswer": "The pipe is on the wall."
+#     },
+# """
+#
+#
+# def GQATorchDataset_collate_fn(data):
+#     """
+#     The collate_fn function working with pytorch data loader.
+#
+#     Since we have both torchtext data and pytorch geometric data, and both of them
+#     require non-defualt data batching behaviour, we therefore create a custom collate fn funciton.
+#
+#     input: data: is a list of tuples with (question_src, sg_datum, program_trg, ...)
+#             which is determined by the get item method of the dataset
+#
+#     output: all fileds in batched format
+#     """
+#     questionID, question_text_tokenized, sg_datum, \
+#         program_text_tokenized, full_answer_text_tokenized, short_answer_label, types \
+#         = zip(*data)
+#
+#     # question_text_tokenized, sg_datum, program_text_tokenized, full_answer_text_tokenized = zip(*data)
+#
+#     # print("question_text_tokenized", question_text_tokenized)
+#     question_text_processed = GQATorchDataset.TEXT.process(question_text_tokenized)
+#     # print("question_text_processed", question_text_processed)
+#
+#     # print("sg_datum", sg_datum)
+#     sg_datum_processed = torch_geometric.data.Batch.from_data_list(sg_datum)
+#     # print("sg_datum_processed", sg_datum_processed)
+#
+#     # print("program_text_tokenized", program_text_tokenized)
+#     # program_text_tokenized_processed = GQATorchDataset.TEXT.process(program_text_tokenized)
+#     expand_program_text_tokenized = []
+#     for instrs in program_text_tokenized:
+#         expand_program_text_tokenized.extend(instrs)
+#     assert len(expand_program_text_tokenized) % GQATorchDataset.MAX_EXECUTION_STEP == 0, expand_program_text_tokenized
+#     program_text_tokenized_processed = GQATorchDataset.TEXT.process(expand_program_text_tokenized)
+#     # print("program_text_tokenized_processed", program_text_tokenized_processed)
+#
+#     # print("full_answer_text_tokenized", full_answer_text_tokenized)
+#     full_answer_text_tokenized_processed = GQATorchDataset.TEXT.process(full_answer_text_tokenized)
+#     # print("full_answer_text_tokenized_processed", full_answer_text_tokenized_processed)
+#
+#     short_answer_label = torch.LongTensor(short_answer_label)
+#
+#     return (
+#         questionID, question_text_processed, sg_datum_processed, program_text_tokenized_processed,
+#         full_answer_text_tokenized_processed, short_answer_label, types
+#     )
 
 
 
 class GQATorchDataset(torch.utils.data.Dataset):
-
-    ##################################
-    # common config for QA part
-    ##################################
-    # MAX_EXECUTION_STEP = 9 # strict 9
-    # strict 9
     MAX_EXECUTION_STEP = 5
 
-    # QA vocab: to preprocess and numerlicalize text
     TEXT = torchtext.data.Field(sequential=True,
                                 tokenize="spacy",
                                 init_token="<start>",
@@ -397,13 +690,6 @@ class GQATorchDataset(torch.utils.data.Dataset):
                                 # Whether to produce tensors with the batch dimension first.
                                 batch_first=False)
 
-    ##################################
-    # Init class-level var
-    # Prepare short answer vocab
-    # read only for using self.XXX to access
-    ##################################
-    # with open(ROOT_DIR / 'GraphVQA/meta_info/GQA_plural_answer.json') as infile:
-    #     answer_plural_inv_map = json.load(infile)
     with open(ROOT_DIR / 'GraphVQA/meta_info/trainval_ans2label.json') as infile:
         ans2label = json.load(infile)
     with open(ROOT_DIR / 'GraphVQA/meta_info/trainval_label2ans.json') as infile:
@@ -422,63 +708,157 @@ class GQATorchDataset(torch.utils.data.Dataset):
         self.split = split
         assert split in SPLIT_TO_H5_PATH_TABLE
 
-        ##################################
-        # Prepare scene graph loader (Ground Truth loader or DETR feature loader)
-        ##################################
-
-        ### Using Ground Truth Scene Graph
         self.sg_feature_lookup = GQA_gt_sg_feature_lookup(self.split) # Using Ground Truth
 
-
-
-
-        ##################################
-        # common config for QA part
-        ##################################
-        # self.max_src = 30
-        # self.max_trg = 80
-        # self.num_regions = 32
-
-        ##################################
-        # load data based on split
-        ##################################
-        ##################################
-        # load data based on split
-        ##################################
         programmed_question_path = SPLIT_TO_PROGRAMMED_QUESTION_PATH_TABLE[split]
         with open(programmed_question_path) as infile:
             self.data = json.load(infile)
 
         if split in ['debug', 'train_unbiased']:
 
-            ##################################
-            # build qa vocab
-            # must build vocab with training data
-            ##################################
             if build_vocab_flag:
                 raise NotImplementedError("Are you sure?")
                 # self.build_qa_vocab()
             self.load_qa_vocab()
         else:
             assert split in ['val_unbiased', 'testdev', 'val_all']
-            ##################################
-            # load qa vocab
-            ##################################
             if load_vocab_flag:
                 self.load_qa_vocab()
 
         print("finished loading the data, totally {} instances".format(len(self.data)))
         self.vocab = GQATorchDataset.TEXT.vocab
 
+
+        #################################################### SG ############################################
+        print('Loading GQA scene graphs...')
+        with open((ROOT_DIR / 'GraphVQA/sceneGraphs/train_sceneGraphs.json'), 'rb') as f:
+            self.train_sgs = json.load(f)
+        with open((ROOT_DIR / 'GraphVQA/sceneGraphs/val_sceneGraphs.json'), 'rb') as f:
+            self.val_sgs = json.load(f)
+        # train_sgs, val_sgs = VG.train_sgs, VG.val_sgs
+
+        # img_list_file = os.path.join(data_dir, data_name, '%s_images.json' % f_mode)
+
+        # if os.path.isfile(img_list_file):
+        f_mode = 'train' if 'train' in split else 'val'
+
+        # print('Loading GQA image ids...')
+        # with open(os.path.join(ROOT_DIR, 'GQA/%s_images.json' % f_mode), 'r') as f:
+        #     self.image_ids = json.load(f)
+
+        (self.ind_to_classes, self.ind_to_predicates,
+         self.classes_to_ind, self.predicates_to_ind) = load_gqa_info(self.train_sgs, self.val_sgs)
+
+        # (self.split_mask, self.gt_boxes,
+        #  self.gt_classes, self.relationships) = load_gqa_graphs(
+        #     train_sgs if f_mode == 'train' else val_sgs,
+        #     self.image_ids,
+        #     self.classes_to_ind, self.predicates_to_ind,
+        #     num_val_im=num_val_im,
+        #     mode=f_mode,
+        #     training_triplets=training_triplets,
+        #     min_graph_size=self.min_graph_size,
+        #     max_graph_size=self.max_graph_size,
+        #     random_subset=False,
+        #     filter_empty_rels=filter_empty_rels,
+        #     filter_zeroshots=True,
+        #     exclude_left_right=exclude_left_right
+        # )
+
+
+        #whether exclude left and right
+        self.exclude_left_right = False
+        if self.exclude_left_right:
+            print('\n excluding some relationships from GQA!\n')
+            self.filter_rels = []
+            for rel in ['to the left of', 'to the right of']:
+                self.filter_rels.append(predicates_to_ind[rel])
+            self.filter_rels = set(self.filter_rels)
+
+
+        ############ Transform pipeline ############
+
+        tform = [SquarePad()]
+        tform += [
+            Resize(IM_SCALE),
+            ToTensor(),
+            Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]
+
+        self.transform_pipeline = Compose(tform)
+
     def __getitem__(self, index):
 
-        ##################################
-        # Unpack GQA data items.
-        # - Scene graph would be handled seperately
-        ##################################
         datum = self.data[index]
 
-        imageId = datum[0]
+        imageId = datum[0] #; print(imageId)
+
+        ################ load sg based on im_id ####################
+        if 'train' in self.split:
+            sg_objects = self.train_sgs[imageId]['objects']
+        else:
+            sg_objects = self.val_sgs[imageId]['objects']
+
+        sorted_oids = sorted(list(sg_objects.keys()))
+
+        boxes_i = []
+        gt_classes_i = []
+        raw_rels = []
+        oid_to_idx = {}
+        no_objs_with_rels = True
+        for oid in sorted_oids:
+            obj = sg_objects[oid]
+            # Compute object GT bbox
+            b = np.array([obj['x'], obj['y'], obj['w'], obj['h']])
+            try:
+                assert np.all(b[:2] >= 0), (b, obj)  # sanity check
+                assert np.all(b[2:] > 0), (b, obj)  # no empty box
+            except:
+                continue  # skip objects with empty bboxes or negative values
+
+            oid_to_idx[oid] = len(gt_classes_i)
+            if len(obj['relations']) > 0:
+                no_objs_with_rels = False
+
+            # Compute object GT class
+            gt_class = self.classes_to_ind[obj['name']]
+            gt_classes_i.append(gt_class)
+
+            # convert to x1, y1, x2, y2
+            box = np.array([b[0], b[1], b[0] + b[2], b[1] + b[3]])
+
+            # box = np.concatenate((b[:2] - b[2:] / 2, b[:2] + b[2:] / 2))
+            boxes_i.append(box)
+
+            # Compute relations from this object to others in the current SG
+            for rel in obj['relations']:
+                raw_rels.append([oid, rel['object'], rel['name']])  # s, o, r
+
+        # Update relations to include SG object ids
+        rels = []
+        for rel in raw_rels:
+            if rel[0] not in oid_to_idx or rel[1] not in oid_to_idx:
+                continue  # skip rels for objects with empty bboxes
+
+            R = self.predicates_to_ind[rel[2]]
+
+            if self.exclude_left_right:
+                if R in self.filter_rels:
+                    continue
+
+            rels.append([oid_to_idx[rel[0]],
+                         oid_to_idx[rel[1]],
+                         R])
+
+        ############################################################
+        # Add current SG information to the dataset
+        boxes_i = np.array(boxes_i)
+        gt_classes_i = np.array(gt_classes_i)
+
+        # boxes.append(boxes_i)
+        # gt_classes.append(gt_classes_i)
+        # relationships.append(rels)
+
         question_text = datum[1]
         # new_programs = datum[2] # processed format, not the origin program
         questionID = datum[3]
@@ -527,13 +907,71 @@ class GQATorchDataset(torch.utils.data.Dataset):
         # assign new
         program_text_tokenized = new_programs_hierarchical_decoder
 
-        ##################################
-        # return
-        ##################################
+
+
+
+
+        ########################## load img ########################
+        fn = os.path.join(ROOT_DIR, 'GQA/images', imageId + '.jpg')
+        image_unpadded = Image.open(fn).convert('RGB')
+        w, h = image_unpadded.size
+
+        ############## Scale boxes ##############
+        im_scale = IM_SCALE
+        box_scale = BOX_SCALE
+        box_scale_factor = box_scale / max(w, h)
+        boxes_i = boxes_i * box_scale_factor
+
+
+        ############## Crop too large ones ##############
+        boxes_i[:, [1, 3]] = boxes_i[:, [1, 3]].clip(
+            None, box_scale / max(image_unpadded.size) * image_unpadded.size[1])
+        boxes_i[:, [0, 2]] = boxes_i[:, [0, 2]].clip(
+            None, box_scale / max(image_unpadded.size) * image_unpadded.size[0])
+        # width, height can become zero after clipping (need to double-check why)
+        ind_zero = (boxes_i[:, 2] - boxes_i[:, 0]) == 0 & (boxes_i[:, 0] > 0)  # x1 == x2 and x1 > 0
+        boxes_i[ind_zero, 0] -= 1
+        ind_zero = (boxes_i[:, 3] - boxes_i[:, 1]) == 0 & (boxes_i[:, 1] > 0)  # y1 == y2 and y1 > 0
+        boxes_i[ind_zero, 1] -= 1
+
+
+        ############## Aug if training ##############
+        ######### Flip #########
+        flipped = np.random.random() > 0.5
+        if flipped and 'train' in self.split:
+            scaled_w = int(box_scale_factor * float(w))
+            # print("Scaled w is {}".format(scaled_w))
+            image_unpadded = image_unpadded.transpose(Image.FLIP_LEFT_RIGHT)
+            boxes_i[:, [0, 2]] = scaled_w - boxes_i[:, [2, 0]]
+
+        ############## Compute im_size ##############
+        img_scale_factor = im_scale / max(w, h)
+        if h > w:
+            im_size = (im_scale, int(w * img_scale_factor), img_scale_factor)
+        elif h < w:
+            im_size = (int(h * img_scale_factor), im_scale, img_scale_factor)
+        else:
+            im_size = (im_scale, im_scale, img_scale_factor)
+
+        ############## Filter_duplicate_rels ##############
+        # ...
+
+        ############## Build entry for sgg ##############
+        sgg_entry = {
+            'img': self.transform_pipeline(image_unpadded),
+            'img_size': im_size,
+            'gt_boxes': boxes_i,
+            'gt_classes': gt_classes_i,
+            'gt_relations': rels,
+            'scale': im_scale / box_scale,  # Multiply the boxes by this.
+            'index': index,
+            'flipped': flipped,
+            'fn': fn,
+        }
 
         return (
             questionID, question_text_tokenized, sg_datum, program_text_tokenized,
-            full_answer_text_tokenized, short_answer_label, types
+            full_answer_text_tokenized, short_answer_label, types, sgg_entry
         )
 
     def __len__(self):
@@ -607,27 +1045,6 @@ class GQATorchDataset(torch.utils.data.Dataset):
         return " ".join(sentence)
 
 
-"""Example json input from QA
-"07333408": {
-    "semantic": [{"operation": "select", "dependencies": [], "argument": "wall (722332)"},
-                 {"operation": "filter color", "dependencies": [0], "argument": "white"},
-                 {"operation": "relate", "dependencies": [1], "argument": "_,on,s (722335)"},
-                 {"operation": "query", "dependencies": [2], "argument": "name"}], "entailed": [], "equivalent": ["07333408"],
-    "question": "What is on the white wall?",
-    "imageId": "2375429",
-    "isBalanced": true,
-    "groups": {"global": "", "local": "14-wall_on,s"},
-    "answer": "pipe",
-    "semanticStr": "select: wall (722332)->filter color: white [0]->relate: _,on,s (722335) [1]->query: name [2]",
-    "annotations": {"answer": {"0": "722335"},
-    "question": {"4:6": "722332"},
-    "fullAnswer": {"1": "722335", "5": "722332"}},
-    "types": {"detailed": "relS", "semantic": "rel", "structural": "query"},
-    "fullAnswer": "The pipe is on the wall."
-    },
-"""
-
-
 def GQATorchDataset_collate_fn(data):
     """
     The collate_fn function working with pytorch data loader.
@@ -641,7 +1058,8 @@ def GQATorchDataset_collate_fn(data):
     output: all fileds in batched format
     """
     questionID, question_text_tokenized, sg_datum, \
-        program_text_tokenized, full_answer_text_tokenized, short_answer_label, types \
+        program_text_tokenized, full_answer_text_tokenized, short_answer_label, types, \
+            sgg_entry \
         = zip(*data)
 
     # question_text_tokenized, sg_datum, program_text_tokenized, full_answer_text_tokenized = zip(*data)
@@ -669,10 +1087,254 @@ def GQATorchDataset_collate_fn(data):
 
     short_answer_label = torch.LongTensor(short_answer_label)
 
+
+    #################### collate rel #####################
+    sgg_entry = vg_collate(sgg_entry) # check authenticity
+    import pdb; pdb.set_trace() 
+
     return (
         questionID, question_text_processed, sg_datum_processed, program_text_tokenized_processed,
-        full_answer_text_tokenized_processed, short_answer_label, types
+        full_answer_text_tokenized_processed, short_answer_label, types, sgg_entry
     )
+
+
+from util.blob import Blob
+def vg_collate(data, num_gpus=1, is_train=False, mode='det', torch_detector=False, is_cuda=True):
+    assert mode in ('det', 'rel')
+    blob = Blob(mode=mode, is_train=is_train, num_gpus=num_gpus,
+                batch_size_per_gpu=len(data) // num_gpus, torch_detector=torch_detector, is_cuda=is_cuda)
+    for d in data:
+        blob.append(d)
+    blob.reduce()
+    return blob
+
+
+
+
+
+def load_gqa_graphs(all_sgs_json, image_ids, classes_to_ind, predicates_to_ind, num_val_im=-1,
+                min_graph_size=-1, max_graph_size=-1, mode='train',
+                training_triplets=None, random_subset=False,
+                filter_empty_rels=True, filter_zeroshots=True,
+                exclude_left_right=False):
+    """
+    Load GT boxes, relations and dataset split
+    :param graphs_file_template: template SG filename (replace * with mode)
+    :param split_modes_file: JSON containing mapping of image id to its split
+    :param mode: (train, val, or test)
+    :param training_triplets: a list containing triplets in the training set
+    :param random_subset: whether to take a random subset of relations as 0-shot
+    :param filter_empty_rels: (will be filtered otherwise.)
+    :return: image_index: a np array containing the index of images we're using
+             boxes: List where each element is a [num_gt, 4] array of ground
+                    truth boxes (x1, y1, x2, y2)
+             gt_classes: List where each element is a [num_gt] array of classes
+             relationships: List where each element is a [num_r, 3] array of
+                    (box_ind_1, box_ind_2, predicate) relationships
+    """
+    if mode not in ('train', 'val', 'test'):
+        raise ValueError('{} invalid'.format(mode))
+
+    if exclude_left_right:
+        print('\n excluding some relationships from GQA!\n')
+        filter_rels = []
+        for rel in ['to the left of', 'to the right of']:
+            filter_rels.append(predicates_to_ind[rel])
+        filter_rels = set(filter_rels)
+
+
+    # Load the image filenames split (i.e. image in train/val/test):
+    # train - 0, val - 1, test - 2
+    image_index = np.arange(len(image_ids))  # all training/test images
+    if num_val_im > 0:
+        if mode in ['val']:
+            image_index = image_index[:num_val_im]
+        elif mode == 'train':
+            image_index = image_index[num_val_im:]
+
+    split_mask = np.zeros(len(image_ids)).astype(np.bool) # [False, False, False, ...,  True,  True,  True]
+    split_mask[image_index] = True
+
+
+    print(mode, np.sum(split_mask))
+
+    image_idxs = {}
+    for i, imid in enumerate(image_ids): # im_id -> index from 0
+        image_idxs[imid] = i
+
+
+    # import pdb; pdb.set_trace()
+    # Get everything by SG
+    boxes = []
+    gt_classes = []
+    relationships = []
+    for imid in image_ids: # sorted im_ids
+
+        if not split_mask[image_idxs[imid]]:
+            continue
+
+        sg_objects = all_sgs_json[imid]['objects']
+        # Sort the keys to ensure object order is always the same
+        sorted_oids = sorted(list(sg_objects.keys()))
+
+        assert filter_empty_rels, 'should filter images with empty rels'
+
+        # Filter out images without objects/bounding boxes
+        if len(sorted_oids) == 0:
+            split_mask[image_idxs[imid]] = False
+            continue
+
+        boxes_i = []
+        gt_classes_i = []
+        raw_rels = []
+        oid_to_idx = {}
+        no_objs_with_rels = True
+        for oid in sorted_oids:
+
+            obj = sg_objects[oid]
+
+            # Compute object GT bbox
+            b = np.array([obj['x'], obj['y'], obj['w'], obj['h']])
+            try:
+                assert np.all(b[:2] >= 0), (b, obj)  # sanity check
+                assert np.all(b[2:] > 0), (b, obj)  # no empty box
+            except:
+                continue  # skip objects with empty bboxes or negative values
+
+
+            oid_to_idx[oid] = len(gt_classes_i)
+            if len(obj['relations']) > 0:
+                no_objs_with_rels = False
+
+            # Compute object GT class
+            gt_class = classes_to_ind[obj['name']]
+            gt_classes_i.append(gt_class)
+
+            # convert to x1, y1, x2, y2
+            box = np.array([b[0], b[1], b[0] + b[2], b[1] + b[3]])
+
+            # box = np.concatenate((b[:2] - b[2:] / 2, b[:2] + b[2:] / 2))
+            boxes_i.append(box)
+
+            # Compute relations from this object to others in the current SG
+            for rel in obj['relations']:
+                raw_rels.append([oid, rel['object'], rel['name']])  # s, o, r
+
+        # Filter out images without relations - TBD
+        if no_objs_with_rels:
+            split_mask[image_idxs[imid]] = False
+            continue
+
+        if min_graph_size > -1 and len(gt_classes_i) <= min_graph_size:  # 0-10 will be excluded
+            split_mask[image_idxs[imid]] = False
+            continue
+
+        if max_graph_size > -1 and len(gt_classes_i) > max_graph_size:  # 11-Inf will be excluded
+            split_mask[image_idxs[imid]] = False
+            continue
+
+        # Update relations to include SG object ids
+        rels = []
+        for rel in raw_rels:
+            if rel[0] not in oid_to_idx or rel[1] not in oid_to_idx:
+                continue   # skip rels for objects with empty bboxes
+
+            R = predicates_to_ind[rel[2]]
+
+            if exclude_left_right:
+                if R in filter_rels:
+                    continue
+
+            rels.append([oid_to_idx[rel[0]],
+                         oid_to_idx[rel[1]],
+                         R])
+
+        rels = np.array(rels)
+        n = len(rels)
+        if n == 0:
+            split_mask[image_idxs[imid]] = False
+            continue
+
+        elif training_triplets:
+            if random_subset:
+                ind_zs = np.random.permutation(n)[:int(np.round(n/15.))]
+            else:
+                ind_zs = []
+                for rel_ind, tri in enumerate(rels):
+                    o1, o2, R = tri
+                    tri_str = '{}_{}_{}'.format(gt_classes_i[o1],
+                                                R,
+                                                gt_classes_i[o2])
+                    if tri_str not in training_triplets:
+                        ind_zs.append(rel_ind)
+                        # print('%s not in the training set' % tri_str, tri)
+                ind_zs = np.array(ind_zs)
+
+            if filter_zeroshots:
+                if len(ind_zs) > 0:
+                    try:
+                        rels = rels[ind_zs]
+                    except:
+                        print(len(rels), ind_zs)
+                        raise
+                else:
+                    rels = np.zeros((0, 3), dtype=np.int32)
+
+            if filter_empty_rels and len(ind_zs) == 0:
+                split_mask[image_idxs[imid]] = False
+                continue
+
+        # Add current SG information to the dataset
+        boxes_i = np.array(boxes_i)
+        gt_classes_i = np.array(gt_classes_i)
+
+        boxes.append(boxes_i)
+        gt_classes.append(gt_classes_i)
+        relationships.append(rels)
+    import pdb; pdb.set_trace()
+    return split_mask, boxes, gt_classes, relationships
+
+
+
+
+
+def load_gqa_info(train_sgs, val_sgs):
+    """
+    Loads the file containing the GQA label meanings
+    :param info_file: JSON
+    :return: ind_to_classes: sorted list of classes
+             ind_to_predicates: sorted list of predicates
+             classes_to_ind: map from object classes to indices
+             predicates_to_ind: map from predicate classes to indices
+    """
+    info = {'label_to_idx': {}, 'predicate_to_idx': {}}
+
+    obj_classes = set()
+    for sg in list(train_sgs.values()) + list(val_sgs.values()):
+        for obj in sg['objects'].values():
+            obj_classes.add(obj['name'])
+    ind_to_classes = ['__background__'] + sorted(list(obj_classes))
+    for obj_lbl, name in enumerate(ind_to_classes):
+        info['label_to_idx'][name] = obj_lbl
+
+    rel_classes = set()
+    for sg in list(train_sgs.values()) + list(val_sgs.values()):
+        for obj in sg['objects'].values():
+            for rel in obj['relations']:
+                rel_classes.add(rel['name'])
+    ind_to_predicates = ['__background__'] + sorted(list(rel_classes))
+    for rel_lbl, name in enumerate(ind_to_predicates):
+        info['predicate_to_idx'][name] = rel_lbl
+
+    assert info['label_to_idx']['__background__'] == 0
+    assert info['predicate_to_idx']['__background__'] == 0
+
+    return (ind_to_classes, ind_to_predicates,
+            info['label_to_idx'], info['predicate_to_idx'])
+
+
+
+
 
 if __name__ == '__main__':
 
@@ -710,7 +1372,8 @@ if __name__ == '__main__':
     # )
 
     for data_batch in data_loader:
-        questionID, questions, gt_scene_graphs, programs, full_answers, short_answer_label, types = data_batch
+        questionID, questions, gt_scene_graphs, programs, full_answers, short_answer_label, types, \
+        sgg_entry = data_batch
         print("gt_scene_graphs", gt_scene_graphs)
         print("gt_scene_graphs.x", gt_scene_graphs.x)
         print("gt_scene_graphs.edge_attr", gt_scene_graphs.edge_attr )
