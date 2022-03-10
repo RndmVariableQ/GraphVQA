@@ -762,12 +762,6 @@ class PipelineModel(torch.nn.Module):
                 ):
 
         # x_encoded, edge_attr_encoded, _ = self.scene_graph_encoder(gt_scene_graphs)
-
-
-
-
-
-
         ##################################
         # Encode questions
         ##################################
@@ -827,7 +821,7 @@ class PipelineModel(torch.nn.Module):
         graph_final_feature = self.graph_global_attention_pooling(
             x = x_executed, # x=x_encoded,
             u = global_language_feature,
-            batch = gt_scene_graphs.batch,
+            batch = sgg_res.im_inds,
             # no need for edge features since it is global node pooling
             size = None)
 
@@ -845,7 +839,7 @@ class PipelineModel(torch.nn.Module):
 
 
 
-        return programs_output, short_answer_logits
+        return programs_output, short_answer_logits, sgg_res
 
     def load_state_dict(self, state_dict, strict=True):
         model_dict = self.state_dict()

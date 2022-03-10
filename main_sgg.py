@@ -44,6 +44,9 @@ import torch_geometric
 import torch.backends.cudnn as cudnn
 import pathlib
 import util.misc as utils
+from util.losses import node_losses, edge_losses
+from util.config import *
+conf = ModelConfig()
 
 from gqa_dataset_entry import GQATorchDataset, GQATorchDataset_collate_fn
 from pipeline_model_gat import PipelineModel # use gat model
@@ -78,7 +81,7 @@ def get_args_parser():
                         help='manual epoch number (useful on restarts)')
     # parser.add_argument('-b', '--batch-size', default=1024, type=int,
     # parser.add_argument('-b', '--batch-size', default=512, type=int,
-    parser.add_argument('-b', '--batch-size', default=32, type=int,
+    parser.add_argument('-b', '--batch-size', default=24, type=int,
                         metavar='N',
                         help='mini-batch size (default: 256), this is the total '
                              'batch size of all GPUs on the current node when '
@@ -324,6 +327,8 @@ def main(args):
         "short_answer": torch.nn.CrossEntropyLoss().to(device=cuda),
         # "short_answer": torch.nn.BCEWithLogitsLoss().to(device=cuda), # sigmoid
         "execution_bitmap": torch.nn.BCELoss().to(device=cuda),
+        "node": node_losses,
+        "edge": edge_losses,
     }
 
     ##################################
@@ -354,7 +359,7 @@ def main(args):
 
         # adjust_learning_rate(optimizer, epoch, args)
 
-        # train for one epoch
+        # TRAIN ONE EPOCH
         train(train_loader, model, criterion, optimizer, epoch, args)
         # evaluate on validation set
         if (epoch + 1) % 5 == 0:
@@ -463,7 +468,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
             sgg_entry=sgg_entry,
         )
 
-        programs_output, short_answer_logits = output
+        programs_output, short_answer_logits, sgg_res = output
 
         ##################################
         # Evaluate on training data
@@ -538,14 +543,23 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         # short_answer_label_one_hot = torch.nn.functional.one_hot(short_answer_label, num_short_answer_choices).float()
         # short_answer_loss = criterion['short_answer'](short_answer_logits, short_answer_label_one_hot) # sigmoid loss
 
-        ##################################
-        # normal softmax loss for short answer
-        ##################################
+        ################### SGG-RELATED LOSSES ################
+        loss_node = criterion['node'](sgg_res.rm_obj_dists,  # predicted node labels (objects)
+                             sgg_res.rm_obj_labels)  # predicted node labels (objects)
+        loss_edge, edges_fg, edges_bg = criterion['edge'](sgg_res.rel_dists,  # predicted edge labels (predicates)
+                                               sgg_res.rel_labels[:, -1],  # ground truth edge labels (predicates)
+                                               conf.loss,
+                                               return_idx=True,
+                                               loss_weights=(conf.alpha, conf.beta, conf.gamma))
+
+        loss = sum(loss_node.values()) + sum(loss_edge.values())
+
+        ################### normal softmax loss for short answer ################
         short_answer_loss = criterion['short_answer'](short_answer_logits, short_answer_label)
 
 
         # loss = program_loss + full_answer_loss + short_answer_loss # + execution_bitmap_loss
-        loss = short_answer_loss + 0 * programs_output.mean() # trivially get around unused program input
+        loss += short_answer_loss + 0 * programs_output.mean() # trivially get around unused program input
 
         # measure accuracy and record loss
         losses.update(loss.item(), this_batch_size)
